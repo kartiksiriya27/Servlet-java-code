@@ -1,45 +1,36 @@
 # ==============================
-# Stage 1: Build + SonarQube
+# Stage 1: Build the Java project
 # ==============================
-FROM maven:3.9.0-eclipse-temurin-17 AS build
 
-# Set environment variables
-ENV SONAR_HOST_URL=http://sonarqube:9000
-ENV SONAR_LOGIN=your_sonar_token
-ENV GIT_REPO=https://github.com/username/your-java-project.git
-ENV PROJECT_KEY=my-java-project
+# Use Maven image with JDK 17 for building the project
+FROM maven:3.9.2-eclipse-temurin-17 AS build
 
-# Install Git
-RUN apt-get update && \
-    apt-get install -y git && \
-    rm -rf /var/lib/apt/lists/*
-
-# Clone the project
+# Set working directory inside the container
 WORKDIR /app
-RUN git clone $GIT_REPO .
 
-# Build the project with Maven
+# Clone the GitHub repository containing the Java project
+RUN git clone https://github.com/kartiksiriya27/Servlet-java-code.git
+
+# Build the project using Maven, skip tests for faster build
 RUN mvn clean package -DskipTests
 
-# Run SonarQube analysis
-RUN mvn sonar:sonar \
-    -Dsonar.projectKey=$PROJECT_KEY \
-    -Dsonar.host.url=$SONAR_HOST_URL \
-    -Dsonar.login=$SONAR_LOGIN
 
 # ==============================
-# Stage 2: Tomcat Deployment
+# Stage 2: Deploy to Tomcat
 # ==============================
-FROM tomcat:10.1-jdk17-temurin
 
-# Remove default webapps
+# Use official Tomcat image with JDK 17 for running the application
+FROM tomcat:10.1-jdk17
+
+# Remove default Tomcat webapps to deploy only our application
 RUN rm -rf /usr/local/tomcat/webapps/*
 
-# Copy WAR from build stage to Tomcat
+# Copy the WAR file built in Stage 1 into Tomcat's webapps directory as ROOT.war
+# ROOT.war will be deployed as the default application on Tomcat
 COPY --from=build /app/target/*.war /usr/local/tomcat/webapps/ROOT.war
 
-# Expose Tomcat port
+# Expose Tomcat default HTTP port
 EXPOSE 8080
 
-# Start Tomcat
+# Command to start Tomcat in the foreground
 CMD ["catalina.sh", "run"]
